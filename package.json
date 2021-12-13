@@ -1,8 +1,8 @@
 {
-  "name": "firebot-custom-script-starter",
-  "scriptOutputName": "starterScript",
+  "name": "firebot-check-follow",
+  "scriptOutputName": "checkFollow",
   "version": "1.0.0",
-  "description": "A starter Firebot custom script",
+  "description": "Concatenates followers list and adds $checkFollow(user) variable that returns true or false",
   "main": "",
   "scripts": {
     "build": "webpack",
@@ -23,5 +23,9 @@
     "webpack": "^4.44.2",
     "webpack-cli": "^4.1.0"
   },
-  "dependencies": {}
+  "dependencies": {
+    "@twurple/api": "^5.0.10",
+    "@twurple/auth": "^5.0.10",
+    "interval-promise": "^1.4.0"
+  }
 }

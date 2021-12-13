@@ -7,7 +7,7 @@ module.exports = {
   mode: "production",
   devtool: false,
   entry: {
-    main: "./src/main.ts",
+    main: "./src/index.ts",
   },
   output: {
     libraryTarget: "commonjs2",
