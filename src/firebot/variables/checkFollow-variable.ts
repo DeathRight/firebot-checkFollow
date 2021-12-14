@@ -1,5 +1,5 @@
 import { ReplaceVariable } from "firebot-custom-scripts-types/types/modules/replace-variable-manager";
-import { checkFollow, Followers } from "../constants";
+import { checkFollow } from "../constants";
 
 /**
  * @async

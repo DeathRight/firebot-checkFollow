@@ -2,7 +2,7 @@
   "name": "firebot-check-follow",
   "scriptOutputName": "checkFollow",
   "version": "1.0.0",
-  "description": "Concatenates followers list and adds $checkFollow(user) variable that returns true or false",
+  "description": "Concatenates followers list and adds $checkFollow[username] variable that returns true or false",
   "main": "",
   "scripts": {
     "build": "webpack",
@@ -10,7 +10,7 @@
     "copy": "node ./scripts/copy-build.js",
     "test": "jest"
   },
-  "author": "ebiggz",
+  "author": "Bigpimpinvoidkin",
   "license": "GNU3",
   "devDependencies": {
     "@types/node": "^14.14.6",

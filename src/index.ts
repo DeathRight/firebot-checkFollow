@@ -5,8 +5,9 @@ import interval from 'interval-promise';
 
 
 interface Params {
-  interval: number;
-}
+  interval: number,
+  username: string,
+};
 
 const script: Firebot.CustomScript<Params> = {
   getScriptManifest: () => {
@@ -23,17 +24,27 @@ const script: Firebot.CustomScript<Params> = {
       interval: {
         type: "number",
         default: 60,
-        description: "Interval to repopulate in seconds",
+        description: "Interval to repopulate followers in seconds",
         secondaryDescription: "Enter a number here",
+      },
+      username: {
+        type: "string",
+        default: "",
+        description: "Username to get/check follows of",
+        secondaryDescription: "Leave blank for streamer",
       },
     };
   },
   run: (runRequest) => {
     const { logger, replaceVariableManager, twitchApi } = runRequest.modules;
+    const param = runRequest.parameters;
+    const god = (param.username) === "" ? runRequest.firebot.accounts.streamer.username : param.username;
+
     logger.info(runRequest.parameters.interval.toString());
-    pushPromise(concatFollowers(twitchApi));
+
+    pushPromise(concatFollowers(twitchApi, god));
     if (runRequest.parameters.interval > 10) {
-      interval(async () => { pushPromise(concatFollowers(twitchApi)) }, runRequest.parameters.interval*1000).catch(e => console.error('Bro...? checkFollow error:',e));
+      interval(async () => { pushPromise(concatFollowers(twitchApi, god)) }, param.interval*1000).catch(e => logger.error('Bro...? interval-promise error:',e));
     };
 
     replaceVariableManager.registerReplaceVariable(CheckFollowVariable);

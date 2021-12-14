@@ -1,18 +1,10 @@
-# Starter Firebot Custom Script in Typescript
+# checkFollow by BigPimpinvoidkin (DeathRight)
 
-### Setup
-1. Create a new repo based off this template (Click "Use this Template" above) or simply fork it
-2. `npm install`
+### What it do
+Asynchronously collects the complete follower list of `username` every `interval` seconds, which can be checked against using the `$checkFollow[viewer's username]` variable which returns true or false depending on if `viewer's username` follows `username` (streamer).
 
-### Building
-Dev:
-1. `npm run build:dev`
-- Automatically copies the compiled .js to Firebot's scripts folder.
+This also has the added benefit of being able to more silently check whether someone is following rather than create needless API calls.
 
-Release:
-1. `npm run build`
-- Copy .js from `/dist`
+- It is recommended to set interval to at least 30s (default 60s) and it will not allow <10s to keep from needlessly spamming API calls.
 
-### Note
-- Keep the script definition object (that contains the `run`, `getScriptManifest`, and `getDefaultParameters` funcs) in the `index.ts` file as it's important those function names don't get minimized.
-- Edit the `"scriptOutputName"` property in `package.json` to change the filename of the outputted script.
+- NOTE: It's not recommended nor is it advised to use this to draw attention to those who unfollow you... that'd be mean. There's a reason that's not an event in the first place. This is mainly to be used to update roles/give followers rewards, not to harass those who unfollow.

@@ -1,16 +1,12 @@
 import { TwitchApi } from "firebot-custom-scripts-types/types/modules/twitch-api";
-import { HelixPaginatedFollowFilter, HelixUserApi } from "@twurple/api/lib/api/helix/user/HelixUserApi";
+import { HelixPaginatedFollowFilter } from "@twurple/api/lib/api/helix/user/HelixUserApi";
 
 export type Followers = {
     date: number,
     followers: string[]
 };
 
-/**
- * @type {Promise<Followers>[]}
- */
 const gFollows: Promise<Followers>[] = new Array();
-//const gFollows: Promise<Followers[]> = Promise.resolve<Followers[]>([]);
 
 export const pushPromise = async (prom: Promise<Followers>): Promise<void> => {
     gFollows.push(prom);
@@ -18,25 +14,24 @@ export const pushPromise = async (prom: Promise<Followers>): Promise<void> => {
 };
 
 export const getFollowers = async (): Promise<string[]> => {
-    const flws = await gFollows[gFollows.length];
-    return flws.followers;
+    return (await gFollows[gFollows.length]).followers;
 };
 
 /**
- * @description Hooks to twitch and paginates across all followers, concatenating them to one big string array for searching
- * @async
+ * Hooks to twitch `api` and paginates across all followers of `flwFrom`, adding them to one big string array for searching
  * @param {TwitchApi} api
- * @returns {Promise<Followers[]>} Promise<Followers[]>
+ * @param {string} flwdUser - the user to get follows of
+ * @return {Promise<Followers>} A promise of Followers type, containing properties for time (`date`) created and the string[] list of `followers`
  */
-export const concatFollowers = async (api: TwitchApi): Promise<Followers> => {
+export const concatFollowers = async (api: TwitchApi, flwdUser: string): Promise<Followers> => {
     const start = Date.now();
     const client = api.getClient();
     const users = client.helix.users;
     const Filter: HelixPaginatedFollowFilter = {
-        followedUser: await users.getUserByName("BigPimpinVoidkin"),
+        followedUser: await users.getUserByName(flwdUser),
         limit: 100,
     };
-    let flwrs: string[] = [];
+    let flwrs: string[];
     let userFollows = await users.getFollows(Filter);
     for (let f = 0; f < userFollows.total; f += userFollows.data.length) { //keep getting next page until we've got 'em all
         for (let i = 0; i < userFollows.data.length; i++) {
@@ -53,11 +48,9 @@ export const concatFollowers = async (api: TwitchApi): Promise<Followers> => {
     return arr;
 };
 /**
- * @description checks whether username is in the follow list
- * @async
+ * Checks whether `username` is in the most recent follow list
  * @param  {string} username - username to check
- * @param {Promise<Followers>} list - list of followers
- * @returns {Promise<boolean>} boolean - Whether user follows Streamer
+ * @returns {Promise<boolean>} Whether user follows Streamer
  */
 export const checkFollow = async (username: string): Promise<boolean> => {
     const start = Date.now();
