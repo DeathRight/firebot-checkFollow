@@ -7,14 +7,20 @@ export type Followers = {
 };
 
 const gFollows: Promise<Followers>[] = new Array();
+const freshFollows: Followers[] = [];
 
 export const pushPromise = async (prom: Promise<Followers>): Promise<void> => {
     gFollows.push(prom);
     prom.catch(e => console.error('Bro...? checkFollow error:',e));
 };
 
-export const getFollowers = async (): Promise<string[]> => {
-    return (await gFollows[gFollows.length]).followers;
+export const pushFreshFollow = (freshFollow: Followers): void => {
+    freshFollows.push(freshFollow);
+    console.info("pushFreshFollows ran: Date(" + freshFollow.date.toString() + "), Followers(" + freshFollow.followers.toString() + ")");
+};
+
+export const getFollowers = async (): Promise<Followers> => {
+    return (await gFollows[gFollows.length]);
 };
 
 /**
@@ -33,7 +39,9 @@ export const concatFollowers = async (api: TwitchApi, flwdUser: string): Promise
     };
     let flwrs: string[];
     let userFollows = await users.getFollows(Filter);
-    for (let f = 0; f < userFollows.total; f += userFollows.data.length) { //keep getting next page until we've got 'em all
+    
+    //keep getting next page until we've got 'em all
+    for (let f = 0; f < userFollows.total; f += userFollows.data.length) {
         for (let i = 0; i < userFollows.data.length; i++) {
             const e = userFollows.data[i];
             if (!flwrs.includes(e.userName)) { //idk how this would happen
@@ -55,6 +63,27 @@ export const concatFollowers = async (api: TwitchApi, flwdUser: string): Promise
 export const checkFollow = async (username: string): Promise<boolean> => {
     const start = Date.now();
     const flwrs = await getFollowers();
-    console.debug('[' + (Date.now() - start).toString() + 'ms] checkFollows returned: ' + flwrs.includes(username))
-    return flwrs.includes(username);
+    let ret: boolean = flwrs.followers.includes(username);
+    //if couldn't find in last concatFollowers list
+    if (!ret) {
+        let fInd: number = -1;
+        const fFlws: Followers = freshFollows.find((e,i): boolean => {
+            fInd = i;
+            return e.followers.includes(username);
+        });
+
+        //if found in freshFollows
+        if (fFlws != undefined) {
+            //if fresh follow occured after last concatFollowers, then assume still following
+            if ((fFlws.date - flwrs.date) >= 0) {
+                ret = true;
+            } else {
+                //if fresh follow occured BEFORE last concatFollowers,
+                //and last concatFollowers happened AFTER, they must have unfollowed; remove from list
+                freshFollows.splice(fInd,1);
+            };
+        };
+    };
+    console.debug('[' + (Date.now() - start).toString() + 'ms] checkFollows returned: ' + ret);
+    return ret;
 };
