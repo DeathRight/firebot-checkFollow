@@ -1,5 +1,5 @@
 import { Firebot } from "firebot-custom-scripts-types";
-import { concatFollowers, Followers, pushPromise, pushFreshFollow } from './firebot/constants';
+import { concatFollowers, Followers, pushPromise, pushFreshFollow, setLogger } from './firebot/constants';
 import { CheckFollowVariable } from './firebot/variables/checkFollow-variable';
 import { unfollowListVariable } from "./firebot/variables/unfollowList-variable";
 import { unfollowSourceDef } from "./firebot/events/unfollow-eventsource";
@@ -50,7 +50,7 @@ const script: Firebot.CustomScript<Params> = {
     const em: any = eventManager;
     const param = runRequest.parameters;
     const god = (param.username) === "" ? runRequest.firebot.accounts.streamer.username : param.username;
-
+    setLogger(logger);
     logger.info("CheckFollow Interval: " + runRequest.parameters.interval.toString());
 
     pushPromise(concatFollowers(twitchApi, god, eventManager));
