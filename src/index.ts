@@ -1,6 +1,8 @@
 import { Firebot } from "firebot-custom-scripts-types";
 import { concatFollowers, Followers, pushPromise, pushFreshFollow } from './firebot/constants';
 import { CheckFollowVariable } from './firebot/variables/checkFollow-variable';
+import { unfollowListVariable } from "./firebot/variables/unfollowList-variable";
+import { unfollowSourceDef } from "./firebot/events/unfollow-eventsource";
 import interval from 'interval-promise';
 
 
@@ -21,7 +23,7 @@ const script: Firebot.CustomScript<Params> = {
   getScriptManifest: () => {
     return {
       name: "Check Follow",
-      description: "Concatenates followers list and adds $checkFollow[user] variable that returns true or false",
+      description: "Concatenates followers list, adds $checkFollow[user] variable, adds unfollow event.",
       author: "BigPimpinVoidkin",
       version: "1.0",
       firebotVersion: "5",
@@ -44,22 +46,24 @@ const script: Firebot.CustomScript<Params> = {
     };
   },
   run: (runRequest) => {
-    const { logger, replaceVariableManager, twitchApi } = runRequest.modules;
-    const eventManager: any = runRequest.modules.eventManager;
+    const { logger, replaceVariableManager, twitchApi, eventManager } = runRequest.modules;
+    const em: any = eventManager;
     const param = runRequest.parameters;
     const god = (param.username) === "" ? runRequest.firebot.accounts.streamer.username : param.username;
 
     logger.info("CheckFollow Interval: " + runRequest.parameters.interval.toString());
 
-    pushPromise(concatFollowers(twitchApi, god));
+    pushPromise(concatFollowers(twitchApi, god, eventManager));
     if (runRequest.parameters.interval > 10) {
-      interval(async () => { pushPromise(concatFollowers(twitchApi, god)) }, param.interval*1000).catch(e => logger.error('Bro...? interval-promise error:',e));
+      interval(async () => await pushPromise(concatFollowers(twitchApi, god, eventManager)), param.interval*1000).catch(e => logger.error('Bro...? interval-promise error:',e));
     };
 
+    eventManager.registerEventSource(unfollowSourceDef);
     replaceVariableManager.registerReplaceVariable(CheckFollowVariable);
+    replaceVariableManager.registerReplaceVariable(unfollowListVariable);
 
     //listen to follow events and push new follows to be checked against
-    eventManager.on("event-triggered", ({
+    em.on("event-triggered", ({
         event,
         source,
         meta,

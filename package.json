@@ -24,6 +24,7 @@
     "webpack-cli": "^4.1.0"
   },
   "dependencies": {
+    "@netilon/differify": "^4.0.0",
     "@twurple/api": "^5.0.10",
     "@twurple/auth": "^5.0.10",
     "interval-promise": "^1.4.0"

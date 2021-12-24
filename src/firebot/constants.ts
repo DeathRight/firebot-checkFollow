@@ -1,5 +1,15 @@
 import { TwitchApi } from "firebot-custom-scripts-types/types/modules/twitch-api";
 import { HelixPaginatedFollowFilter } from "@twurple/api/lib/api/helix/user/HelixUserApi";
+import { triggerUnfollow } from "./events/unfollow-event";
+import { EventManager } from "firebot-custom-scripts-types/types/modules/event-manager";
+import { Differify } from "@netilon/differify";
+
+const differify = new Differify();
+
+export const ID = {
+    source: "bpvk-checkfollow",
+    event: "unfollow"
+};
 
 export type Followers = {
     date: number,
@@ -20,7 +30,24 @@ export const pushFreshFollow = (freshFollow: Followers): void => {
 };
 
 export const getFollowers = async (): Promise<Followers> => {
-    return (await gFollows[gFollows.length]);
+    return (await gFollows[gFollows.length-1]);
+};
+
+export const getUnfollows = async (em: EventManager): Promise<string[]> => {
+    let unfollows: string[];
+    if (gFollows.length > 1) {
+        const prev = await gFollows[gFollows.length-2];
+        const cur = await gFollows[gFollows.length-1];
+        unfollows = differify.applyLeftChanges(differify.compare(prev.followers,cur.followers), true);
+    };
+    if (gFollows.length > 2) {
+        //cleanup
+        gFollows.splice(0,gFollows.length-2);
+    };
+    if (unfollows.length > 0) {
+        triggerUnfollow(unfollows,em); //trigger unfollow event
+    };
+    return unfollows;
 };
 
 /**
@@ -29,7 +56,7 @@ export const getFollowers = async (): Promise<Followers> => {
  * @param {string} flwdUser - the user to get follows of
  * @return {Promise<Followers>} A promise of Followers type, containing properties for time (`date`) created and the string[] list of `followers`
  */
-export const concatFollowers = async (api: TwitchApi, flwdUser: string): Promise<Followers> => {
+export const concatFollowers = async (api: TwitchApi, flwdUser: string, em: EventManager): Promise<Followers> => {
     const start = Date.now();
     const client = api.getClient();
     const users = client.helix.users;
@@ -41,18 +68,22 @@ export const concatFollowers = async (api: TwitchApi, flwdUser: string): Promise
     let userFollows = await users.getFollows(Filter);
     
     //keep getting next page until we've got 'em all
-    for (let f = 0; f < userFollows.total; f += userFollows.data.length) {
+    for (let f = 0; f < userFollows.total; f += (userFollows.data.length-1)) {
         for (let i = 0; i < userFollows.data.length; i++) {
             const e = userFollows.data[i];
-            if (!flwrs.includes(e.userName)) { //idk how this would happen
+            if (e === undefined) { //idk how this would happen
+                break;
+            };
+            if (!flwrs.includes(e.userName)) { //idk how this would happen either
                 flwrs.push(e.userName);
-            }
+            };
         };
         Filter.after = userFollows.cursor;
         userFollows = await users.getFollows(Filter);
     };
     const arr: Followers = {date: Date.now(), followers: flwrs};
     console.debug('[' + (arr.date - start).toString() + 'ms] concatFollowers just created a new Followers object @ time (' + arr.date.toString() + '), with followers: [' + arr.followers.toString() + ']');
+    getUnfollows(em); //attempt async trigger unfollow event
     return arr;
 };
 /**
@@ -81,6 +112,10 @@ export const checkFollow = async (username: string): Promise<boolean> => {
                 //if fresh follow occured BEFORE last concatFollowers,
                 //and last concatFollowers happened AFTER, they must have unfollowed; remove from list
                 freshFollows.splice(fInd,1);
+                //... and add to unfollows list if not already there
+                /*if (!unfollows.includes(username)) {
+                    unfollows.push(username);
+                }*/
             };
         };
     };
