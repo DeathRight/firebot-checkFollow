@@ -13,5 +13,5 @@ export const CheckFollowVariable: ReplaceVariable = {
         description: 'Returns true or false depending on if the user follows the streamer',
         possibleDataOutput: ["text"],
     },
-    evaluator: async (_, username: string): Promise<boolean> => await checkFollow(username),
+    evaluator: async (_, username: string): Promise<boolean> => await checkFollow(username.toLowerCase()),
 };

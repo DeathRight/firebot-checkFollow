@@ -51,7 +51,7 @@ const script: Firebot.CustomScript<Params> = {
     const param = runRequest.parameters;
     const god = (param.username) === "" ? runRequest.firebot.accounts.streamer.username : param.username;
     setLogger(logger);
-    logger.info(`CheckFollow interval: ${param.interval}, username: ${param.username}`);
+    logger.info(`CheckFollow interval: ${param.interval}, username: ${god}`);
 
     const first = pushPromise(concatFollowers(twitchApi, god, eventManager));
     if (runRequest.parameters.interval > 10) {
@@ -83,7 +83,7 @@ const script: Firebot.CustomScript<Params> = {
           return;
       }*/
       if (event.id == "follow") {
-        const fresh: Followers = {date: Date.now(), followers: [meta.username]};
+        const fresh: Followers = {date: Date.now(), followers: [meta.username.toLowerCase()]};
         pushFreshFollow(fresh);
       };
     });

@@ -65,7 +65,7 @@ export const getUnfollows = async (em: EventManager): Promise<string[]> => {
             const prev = await getFollowers(gFollows.length - 2);
             const cur = await getFollowers();
             const diff = differify.compare(prev.followers, cur.followers);
-            let diffres = differify.filterDiffByStatus(diff, "DELETED", true);//differify.filterDiffByStatus(diff,"MODIFIED",true);
+            let diffres = differify.filterDiffByStatus(diff, "DELETED", true);
             //get only the original usernames that were modified in cur
             unfollows = checkDiff(diffres);
         };
@@ -144,6 +144,6 @@ export const checkFollow = async (username: string): Promise<boolean> => {
             };
         };
     };
-    logger.debug('[' + (Date.now() - start).toString() + 'ms] checkFollows returned: ' + ret);
+    logger.debug(`[${Date.now() - start}ms] checkFollow[${username}] returned: ${ret}`);
     return ret;
 };
