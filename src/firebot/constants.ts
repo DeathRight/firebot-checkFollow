@@ -5,7 +5,7 @@ import { EventManager } from "firebot-custom-scripts-types/types/modules/event-m
 import Differify from "@netilon/differify";
 import { Logger } from "firebot-custom-scripts-types/types/modules/logger";
 
-const differify = new Differify();
+const differify = new Differify({ compareArraysInOrder: false });
 let logger: Logger;
 
 export const ID = {
@@ -19,14 +19,18 @@ export type Followers = {
 };
 
 const gFollows: Promise<Followers>[] = new Array();
-const freshFollows: Followers[] = [];
+let freshFollows: Followers[] = [];
 
 export const setLogger = (log: Logger): void => {
     logger = log;
 };
 export const pushPromise = async (prom: Promise<Followers>): Promise<void> => {
-    gFollows.push(prom);
-    prom.catch(e => logger.error('Bro...? checkFollow error: '+e));
+    try {
+        gFollows.push(prom);
+        prom.catch(e => logger.error('Bro...? checkFollow error: ' + e));
+    } catch (e) {
+        logger.error(`pushPromise error: ${e}`);
+    }
 };
 
 export const pushFreshFollow = (freshFollow: Followers): void => {
@@ -34,14 +38,19 @@ export const pushFreshFollow = (freshFollow: Followers): void => {
     logger.debug("pushFreshFollows ran: Date(" + freshFollow.date.toString() + "), Followers(" + freshFollow.followers.toString() + ")");
 };
 
-export const getFollowers = async (): Promise<Followers> => {
-    return (await gFollows[gFollows.length-1]);
+export const getFollowers = async (i?: number): Promise<Followers> => {
+    i = i ? i : (gFollows.length - 1);
+    try {
+        return await gFollows[i];
+    } catch (e) {
+        throw new Error(`getFollowers couldn't retrieve gFollows[${i}]. Cause: ${e}`);
+    }
 };
 
 const checkDiff = (arr: any): string[] => {
-    logger.debug("checkDiff: "+JSON.stringify(arr));
+    logger.debug("checkDiff: " + JSON.stringify(arr));
     let ret: string[] = [];
-    for (let i=0; i <= arr.length; i++) {
+    for (let i = 0; i <= arr.length; i++) {
         if (arr[i] && !(typeof arr[i] == "boolean")) {
             ret.push(arr[i].original);
         }
@@ -50,27 +59,28 @@ const checkDiff = (arr: any): string[] => {
 };
 export const getUnfollows = async (em: EventManager): Promise<string[]> => {
     let unfollows: string[];
-    if (gFollows.length > 1) {
-        const prev = await gFollows[gFollows.length-2];
-        const cur = await gFollows[gFollows.length-1];
-        const diff = differify.compare(prev.followers,cur.followers);
-        logger.debug("diff: "+JSON.stringify(diff));
-        let diffres = differify.filterDiffByStatus(diff,"MODIFIED",true);
-        logger.debug(`prevlength: ${prev.followers.length}; curlength: ${cur.followers.length}`)
-        if (cur.followers.length < prev.followers.length) {
-            diffres = diffres.concat(differify.filterDiffByStatus(diff,"DELETED",true));
+    const start = Date.now();
+    try {
+        if (gFollows.length > 1) {
+            const prev = await getFollowers(gFollows.length - 2);
+            const cur = await getFollowers();
+            const diff = differify.compare(prev.followers, cur.followers);
+            let diffres = differify.filterDiffByStatus(diff, "DELETED", true);//differify.filterDiffByStatus(diff,"MODIFIED",true);
+            //get only the original usernames that were modified in cur
+            unfollows = checkDiff(diffres);
         };
-        unfollows = checkDiff(diffres);//differify.applyLeftChanges(differify.compare(prev.followers,cur.followers), true);
+        if (gFollows.length > 2) {
+            //cleanup
+            gFollows.splice(0, gFollows.length - 2);
+        };
+        if (unfollows.length > 0) {
+            triggerUnfollow(unfollows, em); //trigger unfollow event
+        };
+        logger.info(`[${Date.now() - start}ms] getUnfollows ran, results: ${unfollows}`);
+        return unfollows;
+    } catch (e) {
+        throw new Error(`getUnfollows encountered an error: ${e}`);
     };
-    if (gFollows.length > 2) {
-        //cleanup
-        gFollows.splice(0,gFollows.length-2);
-    };
-    if (unfollows.length > 0) {
-        triggerUnfollow(unfollows,em); //trigger unfollow event
-    };
-    logger.info("getUnfollows ran, results: "+unfollows);
-    return unfollows;
 };
 
 /**
@@ -88,31 +98,22 @@ export const concatFollowers = async (api: TwitchApi, flwdUser: string, em: Even
         limit: 100,
     };
     let flwrs: string[] = [];
-    let userFollows = await users.getFollows(Filter);
-    logger.debug(`concatFollowers users.getFollows data: ${JSON.stringify(userFollows)}, followedUser: ${Filter.followedUser}`)
+    logger.debug(`Running concatFollowers @ [${start}]`);
     //keep getting next page until we've got 'em all
     try {
-        for (let f = 0; f < userFollows.total; f += ((userFollows.data.length-1) > 0 ? (userFollows.data.length-1) : 1)) {
-            for (let i = 0; i < userFollows.data.length; i++) {
-                const e = userFollows.data[i];
-                logger.debug(`concatFollowers for loop data: ${JSON.stringify(e.userName)}`)
-                if (e === undefined) { //idk how this would happen
-                  break;
-                };
-                if (!flwrs.includes(e.userName)) { //idk how this would happen either
-                 flwrs.push(e.userName);
-                };
+        let userFollows = users.getFollowsPaginated(Filter);
+        for await (const f of userFollows) {
+            if (f !== undefined) { //idk how this would happen
+                flwrs.push(f.userName);
             };
-            Filter.after = userFollows.cursor;
-            userFollows = await users.getFollows(Filter);
         };
+        const arr: Followers = { date: Date.now(), followers: flwrs };
+        logger.debug(`[${arr.date - start}ms] concatFollowers just fetched new followers list @ time [${arr.date}] with follower count [${arr.followers.length}]`);
+        freshFollows = []; //clear freshFollows since we got all now
+        return arr
     } catch (error) {
-        logger.error(`concatFollowers error: ${error}`);
+        throw new Error(`concatFollowers error: ${error}`);
     };
-    const arr: Followers = {date: Date.now(), followers: flwrs};
-    logger.debug('[' + (arr.date - start).toString() + 'ms] concatFollowers just created a new Followers object @ time (' + arr.date.toString() + '), with followers: [' + arr.followers.toString() + ']');
-    getUnfollows(em); //attempt async trigger unfollow event
-    return arr;
 };
 /**
  * Checks whether `username` is in the most recent follow list
@@ -126,7 +127,7 @@ export const checkFollow = async (username: string): Promise<boolean> => {
     //if couldn't find in last concatFollowers list
     if (!ret) {
         let fInd: number = -1;
-        const fFlws: Followers = freshFollows.find((e,i): boolean => {
+        const fFlws: Followers = freshFollows.find((e, i): boolean => {
             fInd = i;
             return e.followers.includes(username);
         });
@@ -139,11 +140,7 @@ export const checkFollow = async (username: string): Promise<boolean> => {
             } else {
                 //if fresh follow occured BEFORE last concatFollowers,
                 //and last concatFollowers happened AFTER, they must have unfollowed; remove from list
-                freshFollows.splice(fInd,1);
-                //... and add to unfollows list if not already there
-                /*if (!unfollows.includes(username)) {
-                    unfollows.push(username);
-                }*/
+                freshFollows.splice(fInd, 1);
             };
         };
     };

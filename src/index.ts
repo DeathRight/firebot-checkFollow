@@ -1,5 +1,5 @@
 import { Firebot } from "firebot-custom-scripts-types";
-import { concatFollowers, Followers, pushPromise, pushFreshFollow, setLogger } from './firebot/constants';
+import { concatFollowers, Followers, pushPromise, pushFreshFollow, setLogger, getUnfollows } from './firebot/constants';
 import { CheckFollowVariable } from './firebot/variables/checkFollow-variable';
 import { unfollowListVariable } from "./firebot/variables/unfollowList-variable";
 import { unfollowSourceDef } from "./firebot/events/unfollow-eventsource";
@@ -51,11 +51,20 @@ const script: Firebot.CustomScript<Params> = {
     const param = runRequest.parameters;
     const god = (param.username) === "" ? runRequest.firebot.accounts.streamer.username : param.username;
     setLogger(logger);
-    logger.info("CheckFollow Interval: " + runRequest.parameters.interval.toString());
+    logger.info(`CheckFollow interval: ${param.interval}, username: ${param.username}`);
 
-    pushPromise(concatFollowers(twitchApi, god, eventManager));
+    const first = pushPromise(concatFollowers(twitchApi, god, eventManager));
     if (runRequest.parameters.interval > 10) {
-      interval(async () => await pushPromise(concatFollowers(twitchApi, god, eventManager)), param.interval*1000).catch(e => logger.error('Bro...? interval-promise error:',e));
+      interval(async () => {
+        try {
+          await first;
+          await pushPromise(concatFollowers(twitchApi, god, eventManager));
+          await getUnfollows(eventManager);
+        } catch (e) {
+          logger.error(`CheckFollows interval-promise caught error: ${e}`);
+          return;
+        };
+      }, param.interval*1000).catch(e => logger.error('Bro...? interval-promise error:',e));
     };
 
     eventManager.registerEventSource(unfollowSourceDef);
