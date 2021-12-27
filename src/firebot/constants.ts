@@ -92,23 +92,42 @@ export const getUnfollows = async (em: EventManager): Promise<string[]> => {
 export const concatFollowers = async (api: TwitchApi, flwdUser: string, em: EventManager): Promise<Followers> => {
     const start = Date.now();
     const client = api.getClient();
-    const users = client.helix.users;
+    const users = client.users;
     const Filter: HelixPaginatedFollowFilter = {
         followedUser: (await users.getUserByName(flwdUser)).id,
         limit: 100,
     };
     let flwrs: string[] = [];
     logger.debug(`Running concatFollowers @ [${start}]`);
+
+    const timer = (ms: number) => new Promise(res => setTimeout(res, ms));
     //keep getting next page until we've got 'em all
     try {
         let userFollows = users.getFollowsPaginated(Filter);
+        let lastStep = Date.now();
         for await (const f of userFollows) {
+            //check if we're about to reach rate limit
+            //leave (hopefully) plenty of room for other async reqs
+            if (client.lastKnownRemainingRequests <= 50) {
+                const resetTime = client.lastKnownResetDate
+                logger.debug(`concatFollowers is waiting to not reach rate limit. Will resume in [${resetTime.getSeconds()}s]`);
+                //wait til bucket's full
+                await timer(resetTime.getTime());
+            };
             if (f !== undefined) { //idk how this would happen
                 flwrs.push(f.userName);
             };
+            if (lastStep-Date.now() >= 5000) {
+                const fLen = flwrs.length;
+                const fTot = await userFollows.getTotalCount();
+                const prcnt = ((fLen/fTot)*100) + "%"
+                const tSecs = (Date.now()-start)/1000 + "s";
+                logger.debug(`concatFollowers still fetching. ${prcnt} done. Total time: [${tSecs}]. Total fetched: [${fLen}] of [${fTot}]`);
+                lastStep = Date.now();
+            };
         };
         const arr: Followers = { date: Date.now(), followers: flwrs };
-        logger.debug(`[${arr.date - start}ms] concatFollowers just fetched new followers list @ time [${arr.date}] with follower count [${arr.followers.length}]`);
+        logger.info(`[${arr.date - start}ms] concatFollowers just fetched new followers list @ time [${arr.date}] with follower count [${arr.followers.length}]`);
         freshFollows = []; //clear freshFollows since we got all now
         return arr
     } catch (error) {
