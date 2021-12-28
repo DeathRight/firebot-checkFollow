@@ -49,19 +49,30 @@ const script: Firebot.CustomScript<Params> = {
     const { logger, replaceVariableManager, twitchApi, eventManager } = runRequest.modules;
     const em: any = eventManager;
     const param = runRequest.parameters;
+    param.interval = param.interval > 30 ? param.interval : 30;
+    
     const god = (param.username) === "" ? runRequest.firebot.accounts.streamer.username : param.username;
     setLogger(logger);
     logger.info(`CheckFollow interval: ${param.interval}, username: ${god}`);
 
-    const first = pushPromise(concatFollowers(twitchApi, god, eventManager));
-    if (runRequest.parameters.interval > 10) {
+    const first = concatFollowers(twitchApi, god, eventManager);
+    pushPromise(first);
+    let listening: boolean = false;
+    if (runRequest.parameters.interval >= 30) {
       interval(async () => {
         try {
-          await first;
-          await pushPromise(concatFollowers(twitchApi, god, eventManager));
-          await getUnfollows(eventManager);
+          if (listening == false) {
+            listening = true;
+            await first;
+            const prom = concatFollowers(twitchApi, god, eventManager);
+            pushPromise(prom);
+            await prom;
+            await getUnfollows(eventManager);
+            listening = false;
+          }
         } catch (e) {
           logger.error(`CheckFollows interval-promise caught error: ${e}`);
+          listening = false;
           return;
         };
       }, param.interval*1000).catch(e => logger.error('Bro...? interval-promise error:',e));
